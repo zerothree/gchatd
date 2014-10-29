@@ -30,9 +30,9 @@ const (
     ACTION_GROUPCHAT_PUSH   = "groupchat_push"
     ACTION_PRIVATECHAT_PUSH = "privatechat_push"
 
-    ERRCODE_SUCCESS = 0
-
-    ERRMSG_SUCCESS = "success"
+    ERRCODE_SUCCESS               = 0
+    ERRCODE_KICKED_SAMEUSER_LOGIN = 1
+    ERRMSG_SUCCESS                = "success"
 )
 
 var (

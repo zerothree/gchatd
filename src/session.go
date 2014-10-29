@@ -102,6 +102,12 @@ func (s *Session) sendRoutine() {
         }
         if rsp == nil { // kickout msg is sent from userchanMgr.AddUser()
             s.kickedBySameLogin = true
+            var bean LoginRspBean
+            bean.Action = ACTION_LOGIN_RSP
+            bean.ErrCode = ERRCODE_KICKED_SAMEUSER_LOGIN
+            bean.ErrMsg = fmt.Sprintf("kicked because same user login on other device")
+            s.conn.SetWriteDeadline(time.Now().Add(time.Duration(conf.SendTimeout) * time.Second))
+            s.conn.Write(s.formatMsg(&bean))
             s.conn.Close()
             break
         }
