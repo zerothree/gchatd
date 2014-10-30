@@ -8,11 +8,13 @@ import (
     "net"
     "reflect"
     "time"
+
+    "./protocol"
 )
 
 type Session struct {
     conn              *net.TCPConn
-    user              *UserInfoBean
+    user              *protocol.UserInfoBean
     groups            map[string]*Group
     logined           bool
     rsps              chan []byte
@@ -56,10 +58,10 @@ func (s *Session) recvRoutine() {
         <-s.quit
     }()
 
-    s.recvBuf = make([]byte, MAX_MSG_LEN, MAX_MSG_LEN)
+    s.recvBuf = make([]byte, protocol.MAX_MSG_LEN, protocol.MAX_MSG_LEN)
 
     action, data, err := s.recvMsg()
-    if action != ACTION_LOGIN {
+    if action != protocol.ACTION_LOGIN {
         log.Printf("%s first msg's Type must be ACTION_LOGIN. curr action: %s, msg:%s", s.conn.RemoteAddr(), action, string(data))
         return
     }
@@ -102,9 +104,9 @@ func (s *Session) sendRoutine() {
         }
         if rsp == nil { // kickout msg is sent from userchanMgr.AddUser()
             s.kickedBySameLogin = true
-            var bean LoginRspBean
-            bean.Action = ACTION_LOGIN_RSP
-            bean.ErrCode = ERRCODE_KICKED_SAMEUSER_LOGIN
+            var bean protocol.LoginRspBean
+            bean.Action = protocol.ACTION_LOGIN_RSP
+            bean.ErrCode = protocol.ERRCODE_KICKED_SAMEUSER_LOGIN
             bean.ErrMsg = fmt.Sprintf("kicked because same user login on other device")
             s.conn.SetWriteDeadline(time.Now().Add(time.Duration(conf.SendTimeout) * time.Second))
             s.conn.Write(s.formatMsg(&bean))
@@ -137,7 +139,7 @@ func (s *Session) recvMsg() (action string, data []byte, err error) {
         }
         s.bufDataLen += n
 
-        if s.bufDataLen == MAX_MSG_LEN { // assume include only one msg in buf
+        if s.bufDataLen == protocol.MAX_MSG_LEN { // assume include only one msg in buf
             err = errors.New("msg length greater than MAX_MSG_LEN")
             return
         }
@@ -146,7 +148,7 @@ func (s *Session) recvMsg() (action string, data []byte, err error) {
         }
     }
 
-    var baseBean ReqBaseBean
+    var baseBean protocol.ReqBaseBean
     err = json.Unmarshal(s.recvBuf[:s.bufDataLen], &baseBean)
     if err != nil {
         return
