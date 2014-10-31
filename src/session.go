@@ -21,7 +21,6 @@ type Session struct {
     quit              chan bool
     kickedBySameLogin bool
     recvBuf           []byte
-    bufDataLen        int
 }
 
 func (s *Session) init() {
@@ -126,34 +125,36 @@ func (s *Session) sendRoutine() {
 func (s *Session) recvMsg() (action string, data []byte, err error) {
     s.conn.SetReadDeadline(time.Now().Add(time.Duration(conf.RecvTimeout) * time.Second))
 
-    s.bufDataLen = 0
+    var bean protocol.ReqBaseBean
+    bufDataLen := 0
     for {
+        if bufDataLen >= protocol.MAX_MSG_LEN { // assume include only one msg in buf
+            err = errors.New("msg length greater than MAX_MSG_LEN")
+            return
+        }
+
         var n int
-        n, err = s.conn.Read(s.recvBuf[s.bufDataLen:])
+        n, err = s.conn.Read(s.recvBuf[bufDataLen:])
         if err != nil {
             return
         }
         if n == 0 {
-            err = errors.New("connection is closed by peer")
+            err = ErrConnClosedByPeer
             return
         }
-        s.bufDataLen += n
+        bufDataLen += n
 
-        if s.bufDataLen == protocol.MAX_MSG_LEN { // assume include only one msg in buf
-            err = errors.New("msg length greater than MAX_MSG_LEN")
-            return
-        }
-        if s.recvBuf[s.bufDataLen-1] == '\n' {
+        err = protocol.UnMarshalReqBase(s.recvBuf[:bufDataLen], &bean)
+        if err == nil {
             break
+        } else if err == protocol.ErrDataNotEnough {
+            continue
+        } else {
+            return
         }
     }
 
-    var baseBean protocol.ReqBaseBean
-    err = json.Unmarshal(s.recvBuf[:s.bufDataLen], &baseBean)
-    if err != nil {
-        return
-    }
-    return baseBean.Action, s.recvBuf[:s.bufDataLen], nil
+    return bean.Action, s.recvBuf[:bufDataLen], nil
     //s.handleMsg(baseBean.Action, s.recvBuf[:s.bufDataLen])
 
     /*	offset := 0

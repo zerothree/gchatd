@@ -10,4 +10,6 @@ const (
 
 var (
     dummyError = errors.New("error")
+
+    ErrConnClosedByPeer = errors.New("connection is closed by peer")
 )

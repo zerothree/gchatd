@@ -1,5 +1,9 @@
 package protocol
 
+import (
+    "errors"
+)
+
 const (
     MAX_MSG_LEN = 5000
 )
@@ -31,6 +35,8 @@ const (
 )
 
 var (
+    ErrDataNotEnough = errors.New("data not enough")
+
     SuccLoginRsp          = &LoginRspBean{RspBaseBean: *NewSuccRspBaseBean(ACTION_LOGIN_RSP)}
     SuccHeartBeatRsp      = &HeartBeatRspBean{RspBaseBean: *NewSuccRspBaseBean(ACTION_HEARTBEAT_RSP)}
     SuccUpdateUserInfoRsp = &UpdateUserInfoRspBean{RspBaseBean: *NewSuccRspBaseBean(ACTION_UPDATE_USERINFO_RSP)}

@@ -14,11 +14,15 @@ func Marshal(msg interface{}) []byte {
     return data
 }
 
-func UnMarshal(data []byte) (bean *ReqBaseBean, err error) {
+func UnMarshalReqBase(data []byte, bean *ReqBaseBean) (err error) {
     if data[len(data)-1] != '\n' {
-        return
+        return ErrDataNotEnough
     }
-    bean = &ReqBaseBean{}
+    err = json.Unmarshal(data, bean)
+    return
+}
+
+func UnMarshalReq(baseBean *ReqBaseBean, data []byte, bean interface{}) (err error) {
     err = json.Unmarshal(data, bean)
     return
 }
