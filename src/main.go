@@ -7,9 +7,9 @@ import (
 )
 
 var (
-    userchanMgr = NewUserChanMgr()
-    groupMgr    = NewGroupMgr()
-    conf        = &Conf{}
+    userMgr  = NewUserMgr()
+    groupMgr = NewGroupMgr()
+    conf     = &Conf{}
 )
 
 const (

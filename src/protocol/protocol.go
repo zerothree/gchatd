@@ -148,6 +148,7 @@ type GroupChatPushBean struct {
     From  UserInfoBean `json:"from"`
     Group string       `json:"group"`
     Msg   string       `json:"msg"`
+    Ts    int          `json:"ts`
 }
 
 // private chat push
@@ -155,4 +156,5 @@ type PrivateChatPushBean struct {
     PushBaseBean
     From UserInfoBean `json:"from"`
     Msg  string       `json:"msg"`
+    Ts   int          `json:"ts"`
 }

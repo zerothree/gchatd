@@ -1,8 +1,8 @@
 package main
 
 import (
-    "encoding/json"
     "log"
+    "time"
 
     "./protocol"
 )
@@ -14,7 +14,7 @@ func (s *Session) HandleLogin(data []byte) error {
     }
 
     var bean protocol.LoginBean
-    err := json.Unmarshal(data, &bean)
+    err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
         log.Printf("%s Unmarshal login msg error. %s.  msg:%s", s.conn.RemoteAddr(), err, string(data))
         return err
@@ -28,26 +28,26 @@ func (s *Session) HandleLogin(data []byte) error {
 
     log.Printf("%s %s login. data: %s", s.conn.RemoteAddr(), s.user, string(data))
 
-    s.rsps <- s.formatMsg(protocol.SuccLoginRsp)
+    s.WriteMsg(protocol.Marshal(protocol.SuccLoginRsp))
 
     // add the uesr into groupMgr and userchanMgr
     for _, groupId := range bean.Groups {
         group := groupMgr.GetGroup(groupId)
-        group.AddUser(s.user.Uid, s.rsps)
+        group.AddUser(s.user.Uid, s)
         s.groups[groupId] = group
     }
-    userchanMgr.AddUser(s.user.Uid, s.rsps)
+    userMgr.AddUser(s.user.Uid, s)
     return nil
 }
 
 func (s *Session) HandleHeartBeat(data []byte) error {
-    s.rsps <- s.formatMsg(protocol.SuccHeartBeatRsp)
+    s.WriteMsg(protocol.Marshal(protocol.SuccHeartBeatRsp))
     return nil
 }
 
 func (s *Session) HandleUpdateUserInfo(data []byte) error {
     var bean protocol.UpdateUserInfoBean
-    err := json.Unmarshal(data, &bean)
+    err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
         log.Printf("%s %s Unmarshal UpdateUserInfo msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
@@ -56,13 +56,13 @@ func (s *Session) HandleUpdateUserInfo(data []byte) error {
     s.user.Nick = bean.Nick
     s.user.Extra = bean.Extra
 
-    s.rsps <- s.formatMsg(protocol.SuccUpdateUserInfoRsp)
+    s.WriteMsg(protocol.Marshal(protocol.SuccUpdateUserInfoRsp))
     return nil
 }
 
 func (s *Session) HandleJoinGroup(data []byte) error {
     var bean protocol.JoinGroupBean
-    err := json.Unmarshal(data, &bean)
+    err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
         log.Printf("%s %s Unmarshal JoinGroup msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
@@ -70,17 +70,17 @@ func (s *Session) HandleJoinGroup(data []byte) error {
 
     if _, ok := s.groups[bean.Group]; !ok {
         group := groupMgr.GetGroup(bean.Group)
-        group.AddUser(s.user.Uid, s.rsps)
+        group.AddUser(s.user.Uid, s)
         s.groups[bean.Group] = group
     }
 
-    s.rsps <- s.formatMsg(protocol.SuccJoinGroupRsp)
+    s.WriteMsg(protocol.Marshal(protocol.SuccJoinGroupRsp))
     return nil
 }
 
 func (s *Session) HandleLeaveGroup(data []byte) error {
     var bean protocol.LeaveGroupBean
-    err := json.Unmarshal(data, &bean)
+    err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
         log.Printf("%s %s Unmarshal LeaveGroup msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
@@ -92,13 +92,13 @@ func (s *Session) HandleLeaveGroup(data []byte) error {
         delete(s.groups, bean.Group)
     }
 
-    s.rsps <- s.formatMsg(protocol.SuccLeaveGroupRsp)
+    s.WriteMsg(protocol.Marshal(protocol.SuccLeaveGroupRsp))
     return nil
 }
 
 func (s *Session) HandleGroupChat(data []byte) error {
     var bean protocol.GroupChatBean
-    err := json.Unmarshal(data, &bean)
+    err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
         log.Printf("%s %s Unmarshal groupchat msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
@@ -112,14 +112,15 @@ func (s *Session) HandleGroupChat(data []byte) error {
 
     log.Printf("%s %s group[%s] chat: %s", s.conn.RemoteAddr(), s.user, bean.Group, bean.Msg)
 
-    s.rsps <- s.formatMsg(protocol.SuccGroupChatRsp)
+    s.WriteMsg(protocol.Marshal(protocol.SuccGroupChatRsp))
 
     var push protocol.GroupChatPushBean
     push.Action = protocol.ACTION_GROUPCHAT_PUSH
     push.From = *s.user
     push.Group = bean.Group
     push.Msg = bean.Msg
+    push.Ts = int(time.Now().Unix())
 
-    group.PushMsgToGroup(s.formatMsg(&push), s.user.Uid)
+    group.PushMsgToGroup(protocol.Marshal(&push), s.user.Uid)
     return nil
 }

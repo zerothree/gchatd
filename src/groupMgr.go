@@ -15,8 +15,7 @@ func NewGroupMgr() *GroupMgr {
     return g
 }
 
-/*
-func (g *GroupMgr) AddUser(uid string, rsps chan []byte, groupId string) {
+/*func (g *GroupMgr) AddUser(uid string, rsps chan []byte, groupId string) {
     g.GetGroup(groupId).AddUser(uid, rsps)
 }
 
@@ -28,9 +27,6 @@ func (g *GroupMgr) PushMsgToGroup(groupId string, rsp []byte, excludeUid string)
     g.GetGroup(groupId).PushMsgToGroup(rsp, excludeUid)
 }*/
 
-/**
-* @return *Group
- */
 func (g *GroupMgr) GetGroup(groupId string) *Group {
     g.lock.RLock()
     group, ok := g.groups[groupId]
@@ -49,25 +45,32 @@ func (g *GroupMgr) GetGroup(groupId string) *Group {
     return group
 }
 
+func (g *GroupMgr) delGroup(groupId string) {
+    g.lock.Lock()
+    defer g.lock.Unlock()
+
+    delete(g.groups, groupId)
+}
+
 // group
 type Group struct {
     groupId string
-    users   map[string]chan []byte
+    users   map[string]*Session
     lock    sync.RWMutex
 }
 
 func NewGroup(groupId string) *Group {
     g := &Group{}
     g.groupId = groupId
-    g.users = make(map[string]chan []byte)
+    g.users = make(map[string]*Session)
     return g
 }
 
-func (g *Group) AddUser(uid string, rsps chan []byte) {
+func (g *Group) AddUser(uid string, session *Session) {
     g.lock.Lock()
     defer g.lock.Unlock()
 
-    g.users[uid] = rsps
+    g.users[uid] = session
 }
 
 func (g *Group) RemoveUser(uid string) {
@@ -75,17 +78,18 @@ func (g *Group) RemoveUser(uid string) {
     defer g.lock.Unlock()
 
     delete(g.users, uid)
+    if len(g.users) == 0 {
+        groupMgr.delGroup(g.groupId)
+    }
 }
 
 func (g *Group) PushMsgToGroup(rsp []byte, excludeUid string) {
     g.lock.RLock()
     defer g.lock.RUnlock()
 
-    for uid, rsps := range g.users {
+    for uid, session := range g.users {
         if uid != excludeUid {
-            if len(rsps) < MAX_RSPCHAN_LEN { // if rsps is full we drop rsp to avoid block
-                rsps <- rsp
-            }
+            session.WriteMsg(rsp)
         }
     }
 }

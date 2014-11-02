@@ -14,15 +14,23 @@ func Marshal(msg interface{}) []byte {
     return data
 }
 
-func UnMarshalReqBase(data []byte, bean *ReqBaseBean) (err error) {
-    if data[len(data)-1] != '\n' {
-        return ErrDataNotEnough
+func UnMarshalReqBase(data []byte, bean *ReqBaseBean) (beanLen int, err error) {
+    for i := 0; i < len(data); i++ {
+        if data[i] == '\n' {
+            beanLen = i + 1
+            break
+        }
     }
-    err = json.Unmarshal(data, bean)
+    if beanLen == 0 {
+        err = ErrDataNotEnough
+        return
+    }
+
+    err = json.Unmarshal(data[:beanLen], bean)
     return
 }
 
-func UnMarshalReq(baseBean *ReqBaseBean, data []byte, bean interface{}) (err error) {
+func UnmarshalReq(data []byte, bean interface{}) (err error) {
     err = json.Unmarshal(data, bean)
     return
 }

@@ -7,6 +7,7 @@ import (
     "log"
     "net"
     "reflect"
+    "sync"
     "time"
 
     "./protocol"
@@ -21,6 +22,8 @@ type Session struct {
     quit              chan bool
     kickedBySameLogin bool
     recvBuf           []byte
+    bufDataLen        int
+    rspsLock          sync.Mutex
 }
 
 func (s *Session) init() {
@@ -43,7 +46,7 @@ func (s *Session) recvRoutine() {
                 for _, group := range s.groups {
                     group.RemoveUser(s.user.Uid)
                 }
-                userchanMgr.RemoveUser(s.user.Uid)
+                userMgr.RemoveUser(s.user.Uid)
                 log.Printf("%s %s closing connection", s.conn.RemoteAddr(), s.user)
             } else {
                 log.Printf("%s %s closing connection kicked because of same user login", s.conn.RemoteAddr(), s.user)
@@ -126,15 +129,14 @@ func (s *Session) recvMsg() (action string, data []byte, err error) {
     s.conn.SetReadDeadline(time.Now().Add(time.Duration(conf.RecvTimeout) * time.Second))
 
     var bean protocol.ReqBaseBean
-    bufDataLen := 0
     for {
-        if bufDataLen >= protocol.MAX_MSG_LEN { // assume include only one msg in buf
+        if s.bufDataLen >= protocol.MAX_MSG_LEN { // assume include only one msg in buf
             err = errors.New("msg length greater than MAX_MSG_LEN")
             return
         }
 
         var n int
-        n, err = s.conn.Read(s.recvBuf[bufDataLen:])
+        n, err = s.conn.Read(s.recvBuf[s.bufDataLen:])
         if err != nil {
             return
         }
@@ -142,33 +144,23 @@ func (s *Session) recvMsg() (action string, data []byte, err error) {
             err = ErrConnClosedByPeer
             return
         }
-        bufDataLen += n
+        s.bufDataLen += n
 
-        err = protocol.UnMarshalReqBase(s.recvBuf[:bufDataLen], &bean)
+        var beanLen int
+        beanLen, err = protocol.UnMarshalReqBase(s.recvBuf[:s.bufDataLen], &bean)
         if err == nil {
-            break
+            if s.bufDataLen > beanLen {
+                remainLen := s.bufDataLen - beanLen
+                copy(s.recvBuf[:remainLen], s.recvBuf[beanLen:s.bufDataLen])
+                s.bufDataLen = remainLen
+            }
+            return bean.Action, s.recvBuf[:beanLen], nil
         } else if err == protocol.ErrDataNotEnough {
             continue
         } else {
             return
         }
     }
-
-    return bean.Action, s.recvBuf[:bufDataLen], nil
-    //s.handleMsg(baseBean.Action, s.recvBuf[:s.bufDataLen])
-
-    /*	offset := 0
-    	for i := 0; i < s.bufDataLen; i++ {
-    		if s.recvBuf[i] == '\n' {
-    			var baseBean ReqBaseBean
-    			err = json.Unmarshal(s.recvBuf[:i], &baseBean)
-    			if err != nil {
-    				return err
-    			}
-    			s.handleMsg(baseBean.Action, s.recvBuf[offset:i])
-    			offset = i + 1
-    		}
-    	}*/
 
     return
 }
@@ -180,4 +172,20 @@ func (s *Session) formatMsg(msg interface{}) []byte {
     }
 
     return data
+}
+
+func (c *Session) WriteMsg(msg []byte) {
+    c.rspsLock.Lock()
+    defer c.rspsLock.Unlock()
+
+    //drop rsp to avoid block when rsps is full
+    if msg != nil && len(c.rsps) >= MAX_RSPCHAN_LEN {
+        return
+    }
+
+    c.rsps <- msg
+}
+
+func (c *Session) Kick() {
+    c.WriteMsg(nil)
 }
