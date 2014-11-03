@@ -1,15 +1,14 @@
 package main
 
 import (
-    "encoding/json"
     "errors"
     "fmt"
-    "log"
     "net"
     "reflect"
     "sync"
     "time"
 
+    "./log"
     "./protocol"
 )
 
@@ -47,12 +46,12 @@ func (s *Session) recvRoutine() {
                     group.RemoveUser(s.user.Uid)
                 }
                 userMgr.RemoveUser(s.user.Uid)
-                log.Printf("%s %s closing connection", s.conn.RemoteAddr(), s.user)
+                log.Info("%s %s closing connection", s.conn.RemoteAddr(), s.user)
             } else {
-                log.Printf("%s %s closing connection kicked because of same user login", s.conn.RemoteAddr(), s.user)
+                log.Info("%s %s closing connection kicked because of same user login", s.conn.RemoteAddr(), s.user)
             }
         } else {
-            log.Printf("%s closing connection no login", s.conn.RemoteAddr())
+            log.Info("%s closing connection no login", s.conn.RemoteAddr())
         }
 
         close(s.rsps)
@@ -64,7 +63,7 @@ func (s *Session) recvRoutine() {
 
     action, data, err := s.recvMsg()
     if action != protocol.ACTION_LOGIN {
-        log.Printf("%s first msg's Type must be ACTION_LOGIN. curr action: %s, msg:%s", s.conn.RemoteAddr(), action, string(data))
+        log.Notice("%s first msg's Type must be ACTION_LOGIN. curr action: %s, msg:%s", s.conn.RemoteAddr(), action, string(data))
         return
     }
     err = s.HandleLogin(data)
@@ -75,10 +74,10 @@ func (s *Session) recvRoutine() {
     for {
         action, data, err = s.recvMsg()
         if err != nil {
-            log.Printf("%s %s recvMsg err %s", s.conn.RemoteAddr(), s.user, err)
+            log.Info("%s %s recvMsg err %s", s.conn.RemoteAddr(), s.user, err)
             return
         }
-        //log.Printf("%s %s msg: %s", s.conn.RemoteAddr(), s.user, string(data))
+        log.Debug("%s %s msg: %s", s.conn.RemoteAddr(), s.user, string(data))
 
         err = s.handleMsg(action, data)
         if err != nil {
@@ -91,7 +90,7 @@ func (s *Session) handleMsg(action string, data []byte) error {
     v := reflect.ValueOf(s)
     method := v.MethodByName("Handle" + action)
     if !method.IsValid() || method.Kind() != reflect.Func {
-        log.Printf("%s %s not support action:%s. msg:%s", s.conn.RemoteAddr(), s.user, action, string(data))
+        log.Notice("%s %s not support action:%s. msg:%s", s.conn.RemoteAddr(), s.user, action, string(data))
         return dummyError
     }
 
@@ -111,14 +110,14 @@ func (s *Session) sendRoutine() {
             bean.ErrCode = protocol.ERRCODE_KICKED_SAMEUSER_LOGIN
             bean.ErrMsg = fmt.Sprintf("kicked because same user login on other device")
             s.conn.SetWriteDeadline(time.Now().Add(time.Duration(conf.SendTimeout) * time.Second))
-            s.conn.Write(s.formatMsg(&bean))
+            s.conn.Write(protocol.Marshal(&bean))
             s.conn.Close()
             break
         }
         s.conn.SetWriteDeadline(time.Now().Add(time.Duration(conf.SendTimeout) * time.Second))
         _, err := s.conn.Write(rsp)
         if err != nil {
-            log.Printf("%s %s conn.Write err: %s", s.conn.RemoteAddr(), s.user, err)
+            log.Info("%s %s conn.Write err: %s", s.conn.RemoteAddr(), s.user, err)
             break
         }
     }
@@ -163,15 +162,6 @@ func (s *Session) recvMsg() (action string, data []byte, err error) {
     }
 
     return
-}
-
-func (s *Session) formatMsg(msg interface{}) []byte {
-    data, err := json.Marshal(msg)
-    if err != nil {
-        panic(fmt.Sprintf("formatMsg logic err: %s", err))
-    }
-
-    return data
 }
 
 func (c *Session) WriteMsg(msg []byte) {

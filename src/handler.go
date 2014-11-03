@@ -1,22 +1,22 @@
 package main
 
 import (
-    "log"
     "time"
 
+    "./log"
     "./protocol"
 )
 
 func (s *Session) HandleLogin(data []byte) error {
     if s.logined {
-        log.Printf("%s %s already logined, now login again", s.conn.RemoteAddr(), s.user)
+        log.Notice("%s %s already logined, now login again", s.conn.RemoteAddr(), s.user)
         return dummyError
     }
 
     var bean protocol.LoginBean
     err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
-        log.Printf("%s Unmarshal login msg error. %s.  msg:%s", s.conn.RemoteAddr(), err, string(data))
+        log.Notice("%s Unmarshal login msg error. %s.  msg:%s", s.conn.RemoteAddr(), err, string(data))
         return err
     }
 
@@ -26,7 +26,7 @@ func (s *Session) HandleLogin(data []byte) error {
     s.user = &bean.UserInfo
     s.logined = true
 
-    log.Printf("%s %s login. data: %s", s.conn.RemoteAddr(), s.user, string(data))
+    log.Info("%s %s login. data: %s", s.conn.RemoteAddr(), s.user, string(data))
 
     s.WriteMsg(protocol.Marshal(protocol.SuccLoginRsp))
 
@@ -49,7 +49,7 @@ func (s *Session) HandleUpdateUserInfo(data []byte) error {
     var bean protocol.UpdateUserInfoBean
     err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
-        log.Printf("%s %s Unmarshal UpdateUserInfo msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
+        log.Notice("%s %s Unmarshal UpdateUserInfo msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
     }
 
@@ -64,7 +64,7 @@ func (s *Session) HandleJoinGroup(data []byte) error {
     var bean protocol.JoinGroupBean
     err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
-        log.Printf("%s %s Unmarshal JoinGroup msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
+        log.Notice("%s %s Unmarshal JoinGroup msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
     }
 
@@ -82,7 +82,7 @@ func (s *Session) HandleLeaveGroup(data []byte) error {
     var bean protocol.LeaveGroupBean
     err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
-        log.Printf("%s %s Unmarshal LeaveGroup msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
+        log.Notice("%s %s Unmarshal LeaveGroup msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
     }
 
@@ -100,17 +100,17 @@ func (s *Session) HandleGroupChat(data []byte) error {
     var bean protocol.GroupChatBean
     err := protocol.UnmarshalReq(data, &bean)
     if err != nil {
-        log.Printf("%s %s Unmarshal groupchat msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
+        log.Notice("%s %s Unmarshal groupchat msg error. %s.  msg:%s", s.conn.RemoteAddr(), s.user, err, string(data))
         return err
     }
 
     group, ok := s.groups[bean.Group]
     if !ok {
-        log.Printf("%s %s push group msg which group not be registered", s.conn.RemoteAddr(), s.user)
+        log.Notice("%s %s push group msg which group not be registered", s.conn.RemoteAddr(), s.user)
         return dummyError
     }
 
-    log.Printf("%s %s group[%s] chat: %s", s.conn.RemoteAddr(), s.user, bean.Group, bean.Msg)
+    log.Info("%s %s group[%s] chat: %s", s.conn.RemoteAddr(), s.user, bean.Group, bean.Msg)
 
     s.WriteMsg(protocol.Marshal(protocol.SuccGroupChatRsp))
 
